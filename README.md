@@ -52,6 +52,20 @@ cmake -S . -B build -G "MinGW Makefiles" && cmake --build build
 
 There is also a plain makefile for systems with `sdl2-config`: `make -f Makefile.unix`.
 
+### Prebuilt releases (GitHub Actions)
+
+`.github/workflows/build-release.yml` builds Windows (x64), macOS (universal)
+and Linux (x64) zips on every push to `main` and on pull requests; the zips are
+attached to the workflow run as artifacts. Pushing a version tag also publishes
+them as a GitHub release:
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+Each zip holds the executable, `readme.txt` (from `packaging/`) and the
+libraries it needs: `SDL2.dll` on Windows; on macOS and Linux SDL2 is linked
+statically. The original game files are never included.
+
 ## Running
 
 Run `invataxi` inside the folder with the original files, or give the folder
