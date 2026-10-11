@@ -12,8 +12,8 @@
 #define FRAME_HZ      70.086   /* VGA 320x200 / 80x25 vertical refresh */
 #define TEXT_W        720
 #define TEXT_H        400
-#define LOGICAL_W     640
-#define LOGICAL_H     480
+#define ASPECT_W      4        /* both modes fill a 4:3 CRT screen */
+#define ASPECT_H      3
 
 uint8_t vga_vram[65536];
 
@@ -21,6 +21,8 @@ static SDL_Window   *win;
 static SDL_Renderer *ren;
 static SDL_Texture  *tex_gfx;   /* 320x200 */
 static SDL_Texture  *tex_txt;   /* 720x400 */
+static SDL_Texture  *tex_big;   /* tex_gfx/tex_txt blown up by whole numbers */
+static int           big_w, big_h;
 static SDL_AudioDeviceID audio_dev;
 
 static int      cur_mode = 0x03;
@@ -91,18 +93,33 @@ static void toggle_fullscreen(void)
     SDL_SetWindowFullscreen(win, (f & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
 }
 
-/* Converts a window position (logical 640x480) to mouse driver coordinates
-   (0..639, 0..199). */
+/* Returns the largest 4:3 rectangle centred in an area of w x h. */
+static SDL_Rect fit_4_3(int w, int h)
+{
+    SDL_Rect r;
+    if (w * ASPECT_H > h * ASPECT_W) { r.h = h; r.w = h * ASPECT_W / ASPECT_H; }
+    else                             { r.w = w; r.h = w * ASPECT_H / ASPECT_W; }
+    r.x = (w - r.w) / 2;
+    r.y = (h - r.h) / 2;
+    return r;
+}
+
+/* Converts a window position to mouse driver coordinates (0..639, 0..199). */
 static void update_mouse_from_window(int wx, int wy)
 {
-    /* With a logical size set, SDL reports logical (640x480) coordinates. */
-    int x = wx, y = wy;
+    int ww, wh, x, y;
+    SDL_Rect v;
+    SDL_GetWindowSize(win, &ww, &wh);   /* mouse events use window coordinates */
+    v = fit_4_3(ww, wh);
+    if (v.w <= 0 || v.h <= 0) return;
+    x = (int)((long)(wx - v.x) * 640 / v.w);
+    y = (int)((long)(wy - v.y) * 200 / v.h);
     if (x < 0) x = 0;
-    if (x > LOGICAL_W - 1) x = LOGICAL_W - 1;
+    if (x > 639) x = 639;
     if (y < 0) y = 0;
-    if (y > LOGICAL_H - 1) y = LOGICAL_H - 1;
-    mouse_x = x * 640 / LOGICAL_W;
-    mouse_y = y * 200 / LOGICAL_H;
+    if (y > 199) y = 199;
+    mouse_x = x;
+    mouse_y = y;
 }
 
 /* Processes pending SDL events: quit, keys into the DOS-style keyboard buffer,
@@ -235,8 +252,10 @@ static void render_gfx(void)
 #ifdef INVATAXI_AUTOTEST
 /* Scripted input + screenshots for automated testing (not in normal builds).
    IT_SCRIPT file lines: "<frame> key <c|code>", "<frame> mouse <x> <y> <down 0/1>",
-   "<frame> shot <file.ppm>", "<frame> quit" */
+   "<frame> shot <file.ppm>", "<frame> wshot <file.ppm>" (what the window
+   shows), "<frame> winsize <w> <h>", "<frame> quit" */
 static FILE *it_f;
+static char  it_wshot[200];
 static long  it_next = -1;
 static char  it_line[256];
 /* Reads the next frame-numbered command line from the test script. */
@@ -247,6 +266,23 @@ static void it_load_next(void)
         if (sscanf(it_line, "%ld", &it_next) == 1) return;
     }
 }
+/* Saves what the renderer is about to show in the window as a PPM image. */
+static void it_window_shot(const char *fn)
+{
+    int w, h;
+    unsigned char *buf;
+    FILE *o;
+    SDL_GetRendererOutputSize(ren, &w, &h);
+    buf = (unsigned char *)malloc((size_t)w * h * 3);
+    if (!buf) return;
+    if (SDL_RenderReadPixels(ren, NULL, SDL_PIXELFORMAT_RGB24, buf, w * 3) == 0 && (o = fopen(fn, "wb")) != NULL) {
+        fprintf(o, "P6\n%d %d\n255\n", w, h);
+        fwrite(buf, 1, (size_t)w * h * 3, o);
+        fclose(o);
+    }
+    free(buf);
+}
+
 /* Saves the current screen as a PPM image. */
 static void it_shot(const char *fn)
 {
@@ -273,6 +309,10 @@ static void it_run(void)
                 mouse_x = x; mouse_y = y; mouse_btn = d;
             } else if (!strcmp(cmd, "shot") && sscanf(it_line, "%ld %31s %199s", &fr, cmd, a) == 3) {
                 it_shot(a);
+            } else if (!strcmp(cmd, "wshot") && sscanf(it_line, "%ld %31s %199s", &fr, cmd, a) == 3) {
+                strcpy(it_wshot, a);
+            } else if (!strcmp(cmd, "winsize") && sscanf(it_line, "%ld %31s %d %d", &fr, cmd, &x, &y) == 4) {
+                SDL_SetWindowSize(win, x, y);
             } else if (!strcmp(cmd, "quit")) { plat_shutdown(); exit(0); }
         }
         it_load_next();
@@ -280,13 +320,54 @@ static void it_run(void)
 }
 #endif
 
+/* Copies a w x h screen texture into the 4:3 area of the window ("sharp
+   bilinear" scaling). The texture is first enlarged by whole numbers with
+   nearest-pixel scaling, so every source pixel stays the same size, and only
+   then smoothed to the exact window size. Scaling straight to an uneven size
+   would drop or double single pixel columns and rows, which makes text look
+   ragged. */
+static void draw_scaled(SDL_Texture *src, int w, int h)
+{
+    int ow, oh, kx, ky;
+    SDL_Rect dst;
+    SDL_GetRendererOutputSize(ren, &ow, &oh);
+    dst = fit_4_3(ow, oh);
+    if (dst.w <= 0 || dst.h <= 0) return;
+    kx = (dst.w + w - 1) / w;
+    ky = (dst.h + h - 1) / h;
+    if (dst.w == w * kx && dst.h == h * ky) {   /* exact multiple: nothing to smooth */
+        SDL_RenderCopy(ren, src, NULL, &dst);
+        return;
+    }
+    if (!tex_big || big_w != w * kx || big_h != h * ky) {
+        if (tex_big) SDL_DestroyTexture(tex_big);
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");   /* linear */
+        tex_big = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET,
+                                    w * kx, h * ky);
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+        big_w = w * kx;
+        big_h = h * ky;
+    }
+    if (!tex_big || SDL_SetRenderTarget(ren, tex_big) != 0) {
+        SDL_RenderCopy(ren, src, NULL, &dst);       /* no render targets: plain scaling */
+        return;
+    }
+    SDL_RenderCopy(ren, src, NULL, NULL);
+    SDL_SetRenderTarget(ren, NULL);
+    SDL_RenderCopy(ren, tex_big, NULL, &dst);
+}
+
 /* Renders the current video mode to the window. */
 static void present(void)
 {
+    SDL_SetRenderTarget(ren, NULL);
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
     SDL_RenderClear(ren);
-    if (cur_mode == 0x13) { render_gfx(); SDL_RenderCopy(ren, tex_gfx, NULL, NULL); }
-    else                  { render_text(); SDL_RenderCopy(ren, tex_txt, NULL, NULL); }
+    if (cur_mode == 0x13) { render_gfx(); draw_scaled(tex_gfx, 320, 200); }
+    else                  { render_text(); draw_scaled(tex_txt, TEXT_W, TEXT_H); }
+#ifdef INVATAXI_AUTOTEST
+    if (it_wshot[0]) { it_window_shot(it_wshot); it_wshot[0] = 0; }
+#endif
     SDL_RenderPresent(ren);
 #ifdef INVATAXI_AUTOTEST
     it_run();
@@ -333,7 +414,6 @@ int plat_init(const char *title)
     ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren) ren = SDL_CreateRenderer(win, -1, 0);
     if (!ren) { fprintf(stderr, "SDL_CreateRenderer: %s\n", SDL_GetError()); return 0; }
-    SDL_RenderSetLogicalSize(ren, LOGICAL_W, LOGICAL_H);
     tex_gfx = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 320, 200);
     tex_txt = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, TEXT_W, TEXT_H);
     SDL_ShowCursor(SDL_DISABLE);
@@ -347,6 +427,8 @@ int plat_init(const char *title)
 void plat_shutdown(void)
 {
     if (audio_dev) { SDL_CloseAudioDevice(audio_dev); audio_dev = 0; }
+    if (tex_big) SDL_DestroyTexture(tex_big);
+    tex_big = NULL;
     if (ren) SDL_DestroyRenderer(ren);
     if (win) SDL_DestroyWindow(win);
     ren = NULL; win = NULL;
