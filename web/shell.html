@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INVATAXI</title>
+<!--
+  Page around the web version of INVATAXI. Emscripten fills in {{{ SCRIPT }}}
+  when building (see CMakeLists.txt). The game draws its title picture as soon
+  as it has loaded and then waits (main.c) until "Aloita peli" is clicked,
+  because browsers allow sound only after the user has interacted with the page.
+-->
+<style>
+  :root {
+    --bg: #000;
+    --fg: #aaa;
+    --hi: #ff5555;
+    --title: #ffff55;
+    --frame: #ff55ff;
+    --dim: #c0c0c0;
+    --font: "Courier New", Courier, monospace;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    overflow: hidden;
+  }
+  /* SDL keeps the canvas resolution in step with its size on the page */
+  #canvas {
+    position: fixed;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    outline: none;
+    cursor: none;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+    padding: 16px;
+    background: var(--bg);
+    text-align: center;
+  }
+  .overlay[hidden] { display: none; }
+  /* once the title picture is drawn, the start panel floats over it */
+  .overlay.ready {
+    background: transparent;
+    justify-content: flex-end;
+    padding-bottom: 6vh;
+  }
+  .overlay.ready h1 { display: none; }
+  h1 {
+    margin: 0;
+    color: var(--title);
+    font-size: clamp(2.5rem, 10vw, 5rem);
+    letter-spacing: 0.15em;
+  }
+  .sub { margin: 0; color: var(--hi); }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.6rem;
+    max-width: 40rem;
+  }
+  .overlay.ready .panel {
+    background: rgba(0, 0, 0, 0.88);
+    border: 2px solid var(--frame);
+  }
+  button {
+    font: inherit;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--bg);
+    background: var(--title);
+    border: 0;
+    padding: 0.6em 1.6em;
+    cursor: pointer;
+  }
+  button[hidden] { display: none; }
+  button:focus-visible { outline: 3px solid var(--hi); outline-offset: 3px; }
+  #status { margin: 0; }
+  #status:empty { display: none; }
+  .help {
+    margin: 0;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+  #fullscreen {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    font-size: 0.9rem;
+    font-weight: normal;
+    padding: 0.35em 0.8em;
+    background: #222;
+    color: var(--fg);
+    opacity: 0.6;
+  }
+  #fullscreen:hover { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+
+<div id="start" class="overlay">
+  <h1>INVATAXI</h1>
+  <div class="panel">
+    <p id="status">Ladataan…</p>
+    <button id="play" type="button" hidden>Aloita peli</button>
+    <p class="help" id="help" hidden>
+      Numeronäppäimet: valikko &middot; Hiiri: valitse määränpää kartalta<br>
+      Mikä tahansa näppäin: pysäytä taksi &middot; Esc: luovuta<br>
+      Pelissä on puhetta, joten laita äänet päälle.
+    </p>
+  </div>
+</div>
+
+<div id="end" class="overlay" hidden>
+  <h1>INVATAXI</h1>
+  <p class="sub">Åkesoft on maailman paras!</p>
+  <button id="again" type="button">Pelaa uudelleen</button>
+</div>
+
+<button id="fullscreen" type="button" hidden>Koko näyttö</button>
+
+<script>
+  var startOverlay = document.getElementById('start');
+  var statusLine = document.getElementById('status');
+  var playButton = document.getElementById('play');
+  var canvas = document.getElementById('canvas');
+  var fullscreenButton = document.getElementById('fullscreen');
+
+  var Module = {
+    canvas: canvas,
+    startClicked: false,   // read by main.c while the title picture is shown
+    // Emscripten reports download progress in English; show our own text
+    setStatus: function () {},
+    // main.c has drawn the title picture: show the start panel over it
+    onTitleShown: function () {
+      startOverlay.classList.add('ready');
+      statusLine.textContent = '';
+      playButton.hidden = false;
+      document.getElementById('help').hidden = false;
+      fullscreenButton.hidden = !document.fullscreenEnabled;
+      playButton.focus();
+    },
+    onGameExit: function () {
+      fullscreenButton.hidden = true;
+      if (document.fullscreenElement) document.exitFullscreen();
+      document.getElementById('end').hidden = false;
+    },
+    onAbort: function () {
+      startOverlay.hidden = false;
+      startOverlay.classList.remove('ready');
+      playButton.hidden = true;
+      statusLine.textContent = 'Peli kaatui. Lataa sivu uudelleen.';
+    },
+    print: function (text) { console.log(text); },
+    printErr: function (text) { console.warn(text); }
+  };
+
+  playButton.addEventListener('click', function () {
+    startOverlay.hidden = true;
+    Module.startClicked = true;
+    canvas.focus();
+  });
+
+  // Enter or space also starts (the game itself would otherwise get the key)
+  window.addEventListener('keydown', function (e) {
+    if (!startOverlay.hidden && !playButton.hidden && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      e.stopPropagation();
+      playButton.click();
+    }
+  }, true);
+
+  document.getElementById('again').addEventListener('click', function () {
+    location.reload();
+  });
+
+  fullscreenButton.addEventListener('click', function () {
+    document.documentElement.requestFullscreen().catch(function () {});
+    canvas.focus();
+  });
+
+  // Some browsers start audio suspended; wake it on the next key or click
+  function resumeAudio() {
+    var ctx = Module.SDL2 && Module.SDL2.audioContext;
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+  window.addEventListener('keydown', resumeAudio, true);
+  window.addEventListener('pointerdown', resumeAudio, true);
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

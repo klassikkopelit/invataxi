@@ -9,6 +9,15 @@
 #include "font_vga.h"
 #include "cp437.h"
 
+#ifdef __EMSCRIPTEN__
+/* Web version: the game's blocking loops hand control back to the browser
+   whenever they wait (needs -sASYNCIFY, see CMakeLists.txt). */
+#  include <emscripten.h>
+#  define plat_sleep(ms) emscripten_sleep(ms)
+#else
+#  define plat_sleep(ms) SDL_Delay(ms)
+#endif
+
 #define FRAME_HZ      70.086   /* VGA 320x200 / 80x25 vertical refresh */
 #define TEXT_W        720
 #define TEXT_H        400
@@ -384,6 +393,12 @@ static void frame_tick(void)
     now = SDL_GetPerformanceCounter();
     if (next_frame == 0 || now > next_frame + step * 8) next_frame = now;  /* resync after stalls */
     next_frame += step;
+#ifdef __EMSCRIPTEN__
+    /* A browser only updates the page while our code isn't running, so give
+       control back once every frame, for the time left until the next one. */
+    now = SDL_GetPerformanceCounter();
+    plat_sleep(now < next_frame ? (uint32_t)((next_frame - now) * 1000 / perf_freq) : 0);
+#else
     for (;;) {
         now = SDL_GetPerformanceCounter();
         if (now >= next_frame) break;
@@ -392,6 +407,7 @@ static void frame_tick(void)
             if (ms > 1) SDL_Delay((uint32_t)(ms - 1));
         }
     }
+#endif
     frame_count++;
 }
 
@@ -618,7 +634,7 @@ void crt_delay(int ms)
     while ((int32_t)(SDL_GetTicks() - end) < 0) {
         uint64_t now = SDL_GetPerformanceCounter();
         if (next_frame == 0 || now >= next_frame) frame_tick();
-        else SDL_Delay(1);
+        else plat_sleep(1);
     }
 }
 

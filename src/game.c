@@ -467,6 +467,7 @@ static void enter_hiscore(void)
     }
     if (pos == 6) fprintf(o, "%s\r\n%d\r\n", player_name, score);
     fclose(o);
+    game_file_commit("hiscore.nva");   /* (port) web version: keep it in the browser */
     show_hiscores();
 }
 
@@ -773,6 +774,15 @@ static void cp437_to_utf8(const char *in, char *out, size_t outsz)
     }
     out[o] = 0;
 }
+
+#ifdef __EMSCRIPTEN__
+/* (port) Web version: shows the title picture while the page waits for the
+   Start click. game_main() then continues from the same picture. */
+void game_show_title(void)
+{
+    exec_hjuva(pic_title);
+}
+#endif
 
 /* ---------------------------------------------------------------- */
 /* 28AF: main program                                                  */

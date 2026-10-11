@@ -4,8 +4,6 @@ project(invataxi C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-find_package(SDL2 REQUIRED)
-
 add_executable(invataxi WIN32
     src/main.c
     src/game.c
@@ -18,14 +16,35 @@ add_executable(invataxi WIN32
 # which the game needs (it reads the map picture from it).
 set_target_properties(invataxi PROPERTIES OUTPUT_NAME invataxi-sdl)
 
-if(TARGET SDL2::SDL2)
-    if(TARGET SDL2::SDL2main)
-        target_link_libraries(invataxi PRIVATE SDL2::SDL2main)
-    endif()
-    target_link_libraries(invataxi PRIVATE SDL2::SDL2)
+if(EMSCRIPTEN)
+    # Web version, built with "emcmake cmake" (see README.md). SDL2 comes with
+    # Emscripten, and the original game files in assets/ are packed into the
+    # page. Produces index.html, index.js, index.wasm and index.data.
+    file(GLOB _game_files "${CMAKE_SOURCE_DIR}/assets/*")
+    target_compile_options(invataxi PRIVATE -sUSE_SDL=2)
+    target_link_options(invataxi PRIVATE
+        -sUSE_SDL=2
+        -sASYNCIFY                 # lets the game's wait loops yield to the browser
+        -sALLOW_MEMORY_GROWTH=1
+        -sENVIRONMENT=web
+        -sMINIFY_HTML=0
+        "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/shell.html"
+        "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/assets@/game")
+    set_target_properties(invataxi PROPERTIES
+        OUTPUT_NAME index
+        SUFFIX ".html"
+        LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/shell.html;${_game_files}")
 else()
-    target_include_directories(invataxi PRIVATE ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(invataxi PRIVATE ${SDL2_LIBRARIES})
+    find_package(SDL2 REQUIRED)
+    if(TARGET SDL2::SDL2)
+        if(TARGET SDL2::SDL2main)
+            target_link_libraries(invataxi PRIVATE SDL2::SDL2main)
+        endif()
+        target_link_libraries(invataxi PRIVATE SDL2::SDL2)
+    else()
+        target_include_directories(invataxi PRIVATE ${SDL2_INCLUDE_DIRS})
+        target_link_libraries(invataxi PRIVATE ${SDL2_LIBRARIES})
+    endif()
 endif()
 
 if(MSVC)

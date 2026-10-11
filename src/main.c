@@ -7,6 +7,7 @@
  * HARMONIA.NVA, HISCORE.NVA and 1.SKP ... 24.SKP) are needed at runtime.
  * Without an argument the game looks in the current directory, then next to
  * the executable, then in a "data" folder next to the executable.
+ * In the web version the files are packed into the page at /game.
  */
 #include <SDL.h>
 #include <stdio.h>
@@ -14,6 +15,9 @@
 #include "platform.h"
 #include "files.h"
 #include "game.h"
+#ifdef __EMSCRIPTEN__
+#  include <emscripten.h>
+#endif
 
 /* Uses d as the game directory if it contains INVATAXI.EXE and HARMONIA.NVA;
    returns 1 on success. */
@@ -37,6 +41,12 @@ int main(int argc, char **argv)
         else dir = argv[i];
     }
     if (dir) found = try_dir(dir);
+#ifdef __EMSCRIPTEN__
+    if (!found && try_dir("/game")) {      /* packed into the web page */
+        found = 1;
+        game_file_restore("hiscore.nva");  /* high scores from an earlier visit */
+    }
+#endif
     if (!found) found = try_dir("");
     if (!found) {
         char *base = SDL_GetBasePath();
@@ -64,7 +74,19 @@ int main(int argc, char **argv)
         return 1;
     }
     if (!plat_init("INVATAXI")) return 1;
+#ifdef __EMSCRIPTEN__
+    /* Show the title picture behind the page's Start button and wait for the
+       click: browsers allow sound only after the user has interacted. */
+    game_show_title();
+    EM_ASM({ if (Module.onTitleShown) Module.onTitleShown(); });
+    while (!EM_ASM_INT({ return Module.startClicked ? 1 : 0; }))
+        vga_wait_retrace();
+    while (crt_keypressed()) crt_readkey();   /* drop keys pressed before Start */
+#endif
     game_main();
     plat_shutdown();
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ if (Module.onGameExit) Module.onGameExit(); });   /* web page: "play again" */
+#endif
     return 0;
 }

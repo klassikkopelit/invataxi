@@ -24,6 +24,8 @@ Version 1.0.0:
 - [Linux (64-bit)](https://github.com/klassikkopelit/invataxi/releases/download/v1.0.0/invataxi-v1.0.0-linux-x64.zip)
 
 All versions: [Releases](https://github.com/klassikkopelit/invataxi/releases).
+
+Or play it in the browser: <https://klassikkopelit.github.io/invataxi/>
 You also need the original INVATAXI game files, see `readme.txt` in the zip.
 
 ## Original game files
@@ -67,6 +69,23 @@ cmake -S . -B build -G "MinGW Makefiles" && cmake --build build
 
 There is also a plain makefile for systems with `sdl2-config`: `make -f Makefile.unix`.
 
+### Web version (WebAssembly)
+
+Install [Emscripten](https://emscripten.org/docs/getting_started/downloads.html)
+(version 6.0.12 is what the GitHub workflow uses), then:
+```sh
+source ~/emsdk/emsdk_env.sh            # once per terminal window
+emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web
+python3 -m http.server -d build-web 8000
+```
+and open <http://localhost:8000>. The page has to come from a web server;
+opening `index.html` straight from disk does not work. The original game
+files in `assets/` are packed into the page (`index.data`), and high scores
+are kept in the browser's local storage. The web-only code is inside
+`#ifdef __EMSCRIPTEN__` blocks and in `web/shell.html`, so the desktop builds
+are unchanged.
+
 ### Prebuilt releases (GitHub Actions)
 
 `.github/workflows/build-release.yml` builds Windows (x64), macOS (universal)
@@ -81,6 +100,10 @@ Each zip holds the executable, `readme.txt` (from `packaging/`), the
 libraries it needs (`SDL2.dll` on Windows; on macOS and Linux SDL2 is linked
 statically) and an empty `data/` folder for the original game files, which are
 never included.
+
+`.github/workflows/web.yml` builds the web version and publishes it on GitHub
+Pages on every push to `main` (one-time setup: Settings → Pages → Source:
+"GitHub Actions").
 
 ## Running
 
@@ -138,3 +161,5 @@ Small, deliberate differences:
 | `src/pklite.c` | PKLITE 1.12 unpacker used to read the pictures from the EXEs |
 | `src/files.c` | case-insensitive access to the DOS file names |
 | `src/font_vga.h`, `src/cp437.h`, `src/periods.h` | font, code page and period tables |
+| `web/shell.html` | the web page around the WebAssembly version |
+| `assets/` | the original game files, packed into the web version |

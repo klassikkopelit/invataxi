@@ -16,6 +16,39 @@
 #  define PATH_SEP '/'
 #endif
 
+#ifdef __EMSCRIPTEN__
+#  include <emscripten.h>
+
+/* Copies a file from Emscripten's in-memory file system to localStorage. */
+EM_JS(void, web_save_file, (const char *path, const char *key), {
+    try {
+        var data = FS.readFile(UTF8ToString(path));
+        var s = "";
+        for (var i = 0; i < data.length; i++) s += String.fromCharCode(data[i]);
+        localStorage.setItem(UTF8ToString(key), btoa(s));
+    } catch (e) { console.warn('INVATAXI: could not save ' + UTF8ToString(path), e); }
+});
+
+/* Copies a file saved by web_save_file back into the in-memory file system. */
+EM_JS(void, web_load_file, (const char *path, const char *key), {
+    try {
+        var s = localStorage.getItem(UTF8ToString(key));
+        if (s === null) return;
+        var bin = atob(s), data = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+        FS.writeFile(UTF8ToString(path), data);
+    } catch (e) { console.warn('INVATAXI: could not restore ' + UTF8ToString(path), e); }
+});
+
+/* Builds the localStorage key for a game file, e.g. "invataxi/hiscore.nva". */
+static void web_key(const char *name, char *key, size_t keysz)
+{
+    size_t i, n = strlen("invataxi/");
+    snprintf(key, keysz, "invataxi/%s", name);
+    for (i = n; key[i]; i++) key[i] = (char)tolower((unsigned char)key[i]);
+}
+#endif
+
 static char game_dir[1024] = "";
 
 /* Sets the directory the game files are read from, adding a trailing path separator. */
@@ -80,6 +113,34 @@ int game_file_exists(const char *dir, const char *name)
     n = strlen(d);
     if (n && d[n - 1] != '/' && d[n - 1] != '\\') { d[n] = PATH_SEP; d[n + 1] = 0; }
     return resolve(d, name, p, sizeof p);
+}
+
+/* Web version: stores a file the game has just written in the browser.
+   Does nothing on the desktop. */
+void game_file_commit(const char *name)
+{
+#ifdef __EMSCRIPTEN__
+    char p[1200], key[300];
+    if (!resolve(game_dir, name, p, sizeof p)) return;
+    web_key(name, key, sizeof key);
+    web_save_file(p, key);
+#else
+    (void)name;
+#endif
+}
+
+/* Web version: puts a file stored by game_file_commit back into the game
+   directory. Does nothing on the desktop. */
+void game_file_restore(const char *name)
+{
+#ifdef __EMSCRIPTEN__
+    char p[1200], key[300];
+    if (!resolve(game_dir, name, p, sizeof p)) snprintf(p, sizeof p, "%s%s", game_dir, name);
+    web_key(name, key, sizeof key);
+    web_load_file(p, key);
+#else
+    (void)name;
+#endif
 }
 
 /* Opens a file in the game directory, matching its name case-insensitively.
