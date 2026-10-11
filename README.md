@@ -15,6 +15,10 @@ player "PaxiMod" that was linked into the game is re-implemented in
 `HISCORE.NVA` and `1.SKP` … `24.SKP`. The pictures are unpacked straight out of
 the PKLITE-compressed EXEs, so nothing has to be extracted by hand.
 
+## Original game files
+
+You can download the original game files from [Internet Archive](https://archive.org/details/invataxi)
+
 ## Building
 
 Requirements: a C99 compiler, CMake ≥ 3.10 and SDL2 (2.0.10 or newer).
