@@ -82,6 +82,7 @@ static int      break_row, jump_flag, pattern_delay;
 
 static int8_t  *fx_file;             /* loaded .SKP sample */
 
+/* Converts an Amiga period to the mixer's 8.8 fixed-point sample step. */
 static int period_step(int period)
 {
     uint32_t s;
@@ -90,6 +91,7 @@ static int period_step(int period)
     return (int)(s & 0xffff);
 }
 
+/* Recomputes a channel's effective volume from its note and channel volumes. */
 static void set_effvol(int c)
 {
     int v = ch[c].vol;
@@ -98,6 +100,7 @@ static void set_effvol(int c)
     vc[c].effvol = (v * chanvol[c]) >> 8;
 }
 
+/* Returns the note index (0-35) in the untuned period table that matches period. */
 static int find_note(int period)
 {
     int i;
@@ -105,6 +108,7 @@ static int find_note(int period)
     return 35;
 }
 
+/* Starts the channel's sample at the given period, from byte position offset. */
 static void trigger(int c, int period, int offset)
 {
     chan_t *h = &ch[c];
@@ -123,6 +127,7 @@ static void trigger(int c, int period, int offset)
     v->active = 1;
 }
 
+/* Selects sample sn (1-31) for a channel and takes its default volume and finetune. */
 static void set_sample(int c, int sn)
 {
     if (sn < 1 || sn > 31) return;
@@ -137,6 +142,7 @@ static const unsigned char sine_tab[32] = {
     255,253,250,244,235,224,212,197,180,161,141,120,97,74,49,24
 };
 
+/* Applies one tick of vibrato to a channel's pitch. */
 static void do_vibrato(int c)
 {
     chan_t *h = &ch[c];
@@ -146,6 +152,7 @@ static void do_vibrato(int c)
     h->vib_pos = (h->vib_pos + h->vib_speed) & 63;
 }
 
+/* Applies one tick of volume slide using the channel's effect parameter. */
 static void do_volslide(int c)
 {
     chan_t *h = &ch[c];
@@ -156,6 +163,7 @@ static void do_volslide(int c)
     set_effvol(c);
 }
 
+/* Slides the channel's period one step toward the tone portamento target. */
 static void do_toneporta(int c)
 {
     chan_t *h = &ch[c];
@@ -170,6 +178,8 @@ static void do_toneporta(int c)
     vc[c].step = (uint16_t)period_step(h->period);
 }
 
+/* Reads the current pattern row: starts new notes and handles the tick-0 effects
+   of all four channels. */
 static void process_row(void)
 {
     int c;
@@ -269,6 +279,8 @@ static void process_row(void)
     }
 }
 
+/* Moves to the next row, handling pattern delay, breaks, jumps and loops; wraps
+   back to the start of the song at the end. */
 static void advance_row(void)
 {
     if (pattern_delay) { pattern_delay--; return; }
@@ -285,6 +297,8 @@ static void advance_row(void)
     }
 }
 
+/* Runs the per-tick effects (arpeggio, slides, vibrato, tremolo, retrigger,
+   note cut/delay) on the ticks after the first one of a row. */
 static void process_tick_effects(void)
 {
     int c;
@@ -339,6 +353,7 @@ static void process_tick_effects(void)
     }
 }
 
+/* Advances the MOD player by one tick. */
 static void player_tick(void)
 {
     if (tick == 0) process_row();
@@ -349,6 +364,8 @@ static void player_tick(void)
     }
 }
 
+/* Returns the voice's next sample and advances its position, handling loops and
+   the end of the sample. */
 static int voice_sample(voice_t *v)
 {
     uint32_t acc;
@@ -363,8 +380,11 @@ static int voice_sample(voice_t *v)
     return (v->pos < v->datalen) ? v->data[v->pos] : 0;
 }
 
+/* Halves x rounding toward minus infinity (like an arithmetic shift right). */
 static int floor_half(int x) { return (x >= 0) ? x / 2 : -((-x + 1) / 2); }
 
+/* Audio callback: mixes the four music voices and the effect voice into mono
+   16-bit output. */
 static void audio_cb(int16_t *out, int frames, void *user)
 {
     int i, c;
@@ -396,6 +416,8 @@ static void audio_cb(int16_t *out, int frames, void *user)
     }
 }
 
+/* Opens audio at the given mixing rate and sets up the pitch constant and tick
+   length. Returns nonzero on success. */
 int pm_open_audio(int rate)
 {
     int div, actual;
@@ -409,6 +431,8 @@ int pm_open_audio(int rate)
     return audio_ok;
 }
 
+/* Loads a 4-channel MOD and starts playing it from the beginning. Returns 0 on
+   success, 1 if the file can't be read, 2 if it isn't a supported MOD. */
 int pm_load(const char *path)
 {
     size_t len;
@@ -455,6 +479,7 @@ int pm_load(const char *path)
     return 0;
 }
 
+/* Sets the volume (0-255) of each of the four music channels. */
 void pm_set_volumes(int a, int b, int c, int d)
 {
     plat_audio_lock();
@@ -462,6 +487,7 @@ void pm_set_volumes(int a, int b, int c, int d)
     plat_audio_unlock();
 }
 
+/* Jumps the song to the given order position and row. */
 void pm_jump(int ord, int r)
 {
     plat_audio_lock();
@@ -470,6 +496,7 @@ void pm_jump(int ord, int r)
     plat_audio_unlock();
 }
 
+/* Plays instrument ins (1-31) of the loaded MOD once on the effect channel. */
 void pm_play_instrument(int period, int ins)
 {
     sample_t *s;
@@ -485,6 +512,8 @@ void pm_play_instrument(int period, int ins)
     plat_audio_unlock();
 }
 
+/* Loads a raw 8-bit sample file (.SKP) and plays it on the effect channel.
+   Returns 0 on success, 1 if the file can't be opened, 2 if out of memory. */
 int pm_play_file(const char *path, int period)
 {
     FILE *f = game_fopen(path, "rb");
@@ -508,6 +537,7 @@ int pm_play_file(const char *path, int period)
     return 0;
 }
 
+/* Stops the music and the effect channel. */
 void pm_stop(void)
 {
     plat_audio_lock();

@@ -22,12 +22,14 @@ typedef struct {
     int err;
 } bitreader;
 
+/* Returns the next input byte; at end of data sets the error flag and returns 0. */
 static int rd_byte(bitreader *br)
 {
     if (br->ipos >= br->inlen) { br->err = 1; return 0; }
     return br->in[br->ipos++];
 }
 
+/* Loads the next 16-bit little-endian word into the bit buffer. */
 static void refill(bitreader *br)
 {
     int lo = rd_byte(br);
@@ -36,6 +38,7 @@ static void refill(bitreader *br)
     br->nbits = 16;
 }
 
+/* Returns the next bit (LSB first), refilling the buffer when it runs empty. */
 static int getbit(bitreader *br)
 {
     int v = br->bitbuf & 1;
@@ -58,6 +61,7 @@ static const unsigned short offs_tab[32] = {
     0x7038,0x7039,0x703a,0x703b,0x703c,0x703d,0x703e,0x703f
 };
 
+/* Reads a 1-12 bit code (MSB first) and returns its index in tab, or -1 if none matches. */
 static int read_code(bitreader *br, const unsigned short *tab, int n)
 {
     unsigned code = 0;
@@ -73,6 +77,8 @@ static int read_code(bitreader *br, const unsigned short *tab, int n)
     return -1;
 }
 
+/* Unpacks a PKLITE 1.12 large/extra compressed EXE. Returns the decompressed load
+   module in a malloc'd buffer (size in *outlen), or NULL if the format is unsupported. */
 unsigned char *pklite_unpack(const unsigned char *exe, size_t exelen, size_t *outlen)
 {
     bitreader br;

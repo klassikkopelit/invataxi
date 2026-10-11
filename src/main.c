@@ -15,6 +15,8 @@
 #include "files.h"
 #include "game.h"
 
+/* Uses d as the game directory if it contains INVATAXI.EXE and HARMONIA.NVA;
+   returns 1 on success. */
 static int try_dir(const char *d)
 {
     if (game_file_exists(d, "INVATAXI.EXE") && game_file_exists(d, "HARMONIA.NVA")) {
@@ -24,6 +26,8 @@ static int try_dir(const char *d)
     return 0;
 }
 
+/* Parses the command line, locates the original game files, loads the pictures
+   and runs the game. */
 int main(int argc, char **argv)
 {
     int found = 0, i;

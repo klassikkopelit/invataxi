@@ -52,6 +52,7 @@ static const unsigned char *pic_lefty;  /* HJUVA_#2.EXE "autoo"     */
 
 static uint32_t rand_seed;
 
+/* Seeds the random generator from the clock (or IT_SEED in test builds). */
 static void tp_randomize(void)
 {
     rand_seed = (uint32_t)time(NULL) ^ (plat_ticks_ms() * 2654435761u);
@@ -60,6 +61,7 @@ static void tp_randomize(void)
 #endif
 }
 
+/* Returns a random number 0..range-1 using Turbo Pascal's Random algorithm. */
 static int tp_random(int range)
 {
     rand_seed = rand_seed * 0x08088405u + 1u;
@@ -72,6 +74,7 @@ static int tp_random(int range)
 /* 0036: wait for a complete vertical retrace */
 static void vsync(void) { vga_wait_retrace(); }
 
+/* Waits n vertical retraces. */
 static void wait_frames(int n)
 {
     /* "i46 := 1; repeat vsync; ... until i46 = n" style loops */
@@ -79,11 +82,15 @@ static void wait_frames(int n)
 }
 
 /* 0044 / 0068: INT 10h AH=01 cursor shape 2607h (hide) / 0607h (show) */
+/* Hides the text cursor. */
 static void hide_text_cursor(void) { vga_cursor_shape(0); }
+/* Shows the text cursor. */
 static void show_text_cursor(void) { vga_cursor_shape(1); }
 
 /* 0694 / 06B7 */
+/* Sets a pixel on the graphics screen. */
 static void put_pixel(int x, int y, int c) { vga_putpixel(x, y, (uint8_t)c); }
+/* Returns a pixel from the graphics screen. */
 static int  get_pixel(int x, int y) { return vga_getpixel(x, y); }
 
 /* 0000 + 0017: show a RIX picture (palette first, then 64000 bytes) */
@@ -114,6 +121,8 @@ static void say(const char *skp, int period, int frames)
 
 int game_sound_menu = 0;   /* (port) 1 = show the original sound card menu */
 
+/* Picks the sound device and mixing rate (defaults unless the menu is enabled),
+   opens audio and starts the music. */
 static void sound_setup(void)
 {
     if (!game_sound_menu) {
@@ -192,6 +201,7 @@ static void sound_setup(void)
 /* ---------------------------------------------------------------- */
 /* 0619: quit                                                         */
 
+/* Returns to text mode, shows the farewell message and fades the music out. */
 static void quit_to_dos(void)
 {
     vga_set_mode(0x03);
@@ -213,6 +223,7 @@ static void quit_to_dos(void)
 /* ---------------------------------------------------------------- */
 /* 06E1 / 0739: grab and draw the 63x23 taxi from the "autoo" picture  */
 
+/* Copies the 63x23 taxi image from the screen into taxi_buf. */
 static void grab_taxi(void)
 {
     int x, y, idx = 1;
@@ -223,6 +234,7 @@ static void grab_taxi(void)
         }
 }
 
+/* Draws the taxi from taxi_buf at (taxi_x, taxi_y). */
 static void draw_taxi(void)
 {
     int x, y, idx = 1;
@@ -236,6 +248,7 @@ static void draw_taxi(void)
 /* ---------------------------------------------------------------- */
 /* 07B0: money bar shrinks (customer got bored and you paid)          */
 
+/* Animates the money bar shrinking by money_delta and subtracts it from money. */
 static void money_bar_decrease(void)
 {
     int x, y, from;
@@ -261,6 +274,7 @@ static void money_bar_decrease(void)
 
 /* 08B5: money bar grows (fare paid) / plain redraw when delta = 0     */
 
+/* Redraws the money bar, animates it growing by money_delta and adds it to money. */
 static void money_bar_increase(void)
 {
     int x, y;
@@ -283,6 +297,7 @@ static void money_bar_increase(void)
 
 /* 09A4: erase lost "supermarios" (the three squares next to EMÄLÄT) */
 
+/* Blanks out the life squares that have been lost. */
 static void draw_lives(void)
 {
     int x, y;
@@ -297,6 +312,7 @@ static void draw_lives(void)
 
 /* 0A7A: map screen */
 
+/* Switches to graphics mode and shows the map with the remaining lives. */
 static void show_map(void)
 {
     vga_set_mode(0x13);
@@ -307,6 +323,7 @@ static void show_map(void)
 /* ---------------------------------------------------------------- */
 /* 10B6: TAUSTATARINA - background story                              */
 
+/* Shows the background story and waits for a key. */
 static void story(void)
 {
     crt_textcolor(9);
@@ -348,6 +365,7 @@ static const char *default_hiscores[12] = {
 typedef struct { FILE *f; int line; } tfile;
 
 /* ReadLn(f, s) */
+/* Reads one line from the hiscore file, or from the built-in table if it's missing. */
 static void t_readln(tfile *t, char *s)
 {
     int c, n = 0;
@@ -372,6 +390,7 @@ static void t_readln(tfile *t, char *s)
 }
 
 /* Read(f, i); ReadLn(f) */
+/* Reads one line and returns it as an integer. */
 static int t_readint_ln(tfile *t)
 {
     char s[256];
@@ -383,6 +402,7 @@ static int t_readint_ln(tfile *t)
 static void cp437_to_utf8(const char *in, char *out, size_t outsz);
 
 /* 134E: SEE HISCORES */
+/* Shows the hiscore list and waits for a key. */
 static void show_hiscores(void)
 {
     tfile t;
@@ -451,6 +471,7 @@ static void enter_hiscore(void)
 }
 
 /* 177E: end of game scoring */
+/* Shows a (random) final score and randomly decides whether it makes the list. */
 static void final_score(void)
 {
     crt_textcolor(8);
@@ -476,6 +497,7 @@ static void final_score(void)
 /* ---------------------------------------------------------------- */
 /* 18B9: menu frame                                                   */
 
+/* Draws the frame of the main menu. */
 static void menu_box(void)
 {
     crt_textcolor(0x0d);
@@ -528,6 +550,7 @@ static const speech_t destinations[15] = {
     { "24.skp", 0x140, 0x42, 24 },
 };
 
+/* Plays a greeting and a random destination speech, and sets destination. */
 static void new_customer(void)
 {
     wait_frames(0x32);
@@ -571,6 +594,7 @@ static const region_t regions[] = {
     { 0x0c,  0x03, 0x60,  0x21, 13 },
 };
 
+/* Sets choice to the place under the mouse (1 = none); a hit ends the wait loop. */
 static void map_click(void)
 {
     size_t i;
@@ -632,6 +656,7 @@ static void impatient_customer(void)
 }
 
 /* 2697: ALOITA PELI */
+/* Runs one game: customers keep coming until all lives are lost, then scoring. */
 static void play_game(void)
 {
     pm_jump(1, 0);
@@ -676,6 +701,7 @@ static void play_game(void)
 }
 
 /* 2808: the secret "9" key */
+/* Shows the cheat key message and waits for Enter. */
 static void cheat(void)
 {
     char dummy[128];
@@ -690,6 +716,7 @@ static void cheat(void)
 
 #include "pklite.h"
 
+/* Finds a 320x200 ColoRIX (RIX3) picture in a memory image; NULL if none. */
 static const unsigned char *find_rix(const unsigned char *img, size_t len)
 {
     size_t i;
@@ -701,6 +728,7 @@ static const unsigned char *find_rix(const unsigned char *img, size_t len)
     return NULL;
 }
 
+/* Loads an EXE, unpacks it and returns the RIX picture inside it (NULL if none). */
 static const unsigned char *load_picture(const char *exe)
 {
     size_t len, ulen;
@@ -720,6 +748,7 @@ static const unsigned char *load_picture(const char *exe)
     return NULL;
 }
 
+/* Loads the map, title and taxi pictures from the original EXEs; 1 if all found. */
 int game_load_assets(void)
 {
     pic_map   = load_picture("INVATAXI.EXE");
@@ -731,6 +760,7 @@ int game_load_assets(void)
 static void cp437_to_utf8(const char *in, char *out, size_t outsz);
 
 #include "cp437.h"
+/* Converts a CP437 string to UTF-8. */
 static void cp437_to_utf8(const char *in, char *out, size_t outsz)
 {
     size_t o = 0;
@@ -747,6 +777,7 @@ static void cp437_to_utf8(const char *in, char *out, size_t outsz)
 /* ---------------------------------------------------------------- */
 /* 28AF: main program                                                  */
 
+/* Main program: sound setup and intro, then the main menu until the player quits. */
 void game_main(void)
 {
     tp_randomize();

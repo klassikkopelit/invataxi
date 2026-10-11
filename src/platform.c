@@ -63,8 +63,10 @@ static const uint16_t cur_cursor[16] = {
     0x0000,0x4000,0x6000,0x7000,0x7800,0x7C00,0x7E00,0x7F00,
     0x7F80,0x7C00,0x6C00,0x4600,0x0600,0x0300,0x0300,0x0000 };
 
+/* Returns milliseconds since SDL was initialised. */
 uint32_t plat_ticks_ms(void) { return SDL_GetTicks(); }
 
+/* Adds a key code to the keyboard buffer; drops it if the buffer is full. */
 static void kpush(int c)
 {
     int n = (khead + 1) % (int)sizeof kbuf;
@@ -73,6 +75,7 @@ static void kpush(int c)
     khead = n;
 }
 
+/* Converts a Unicode code point to its CP437 code, or -1 if there is none. */
 static int uni_to_cp437(uint32_t u)
 {
     int i;
@@ -81,12 +84,15 @@ static int uni_to_cp437(uint32_t u)
     return -1;
 }
 
+/* Switches the window between windowed and desktop fullscreen. */
 static void toggle_fullscreen(void)
 {
     uint32_t f = SDL_GetWindowFlags(win);
     SDL_SetWindowFullscreen(win, (f & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
 }
 
+/* Converts a window position (logical 640x480) to mouse driver coordinates
+   (0..639, 0..199). */
 static void update_mouse_from_window(int wx, int wy)
 {
     /* With a logical size set, SDL reports logical (640x480) coordinates. */
@@ -99,6 +105,8 @@ static void update_mouse_from_window(int wx, int wy)
     mouse_y = y * 200 / LOGICAL_H;
 }
 
+/* Processes pending SDL events: quit, keys into the DOS-style keyboard buffer,
+   mouse movement and buttons. */
 static void pump_events(void)
 {
     SDL_Event e;
@@ -168,6 +176,8 @@ static void pump_events(void)
 /* ------------------------------------------------------------------ */
 /* rendering                                                           */
 
+/* Draws the 80x25 text screen (with blinking and cursor) into the text texture
+   using the VGA 9x16 font. */
 static void render_text(void)
 {
     int row, col, line, bit;
@@ -198,6 +208,8 @@ static void render_text(void)
     SDL_UpdateTexture(tex_txt, NULL, pix_txt, TEXT_W * 4);
 }
 
+/* Converts mode 13h video memory to RGB through the palette, draws the mouse
+   cursor and updates the graphics texture. */
 static void render_gfx(void)
 {
     int i, r, c;
@@ -227,6 +239,7 @@ static void render_gfx(void)
 static FILE *it_f;
 static long  it_next = -1;
 static char  it_line[256];
+/* Reads the next frame-numbered command line from the test script. */
 static void it_load_next(void)
 {
     it_next = -1;
@@ -234,6 +247,7 @@ static void it_load_next(void)
         if (sscanf(it_line, "%ld", &it_next) == 1) return;
     }
 }
+/* Saves the current screen as a PPM image. */
 static void it_shot(const char *fn)
 {
     FILE *o = fopen(fn, "wb");
@@ -244,6 +258,7 @@ static void it_shot(const char *fn)
     for (i = 0; i < w * h; i++) { fputc((p[i] >> 16) & 255, o); fputc((p[i] >> 8) & 255, o); fputc(p[i] & 255, o); }
     fclose(o);
 }
+/* Runs all test script commands scheduled up to the current frame. */
 static void it_run(void)
 {
     static int inited;
@@ -265,6 +280,7 @@ static void it_run(void)
 }
 #endif
 
+/* Renders the current video mode to the window. */
 static void present(void)
 {
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
@@ -277,6 +293,7 @@ static void present(void)
 #endif
 }
 
+/* Handles events, shows a frame and waits for the next 70 Hz retrace time. */
 static void frame_tick(void)
 {
     uint64_t now;
@@ -297,10 +314,12 @@ static void frame_tick(void)
     frame_count++;
 }
 
+/* Waits for the next simulated vertical retrace (one 70 Hz frame). */
 void vga_wait_retrace(void) { frame_tick(); }
 
 /* ------------------------------------------------------------------ */
 
+/* Initialises SDL and creates the window, renderer and textures. Returns 1 on success. */
 int plat_init(const char *title)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
@@ -324,6 +343,7 @@ int plat_init(const char *title)
     return 1;
 }
 
+/* Closes audio, destroys the window and renderer and shuts SDL down. */
 void plat_shutdown(void)
 {
     if (audio_dev) { SDL_CloseAudioDevice(audio_dev); audio_dev = 0; }
@@ -336,6 +356,7 @@ void plat_shutdown(void)
 /* ------------------------------------------------------------------ */
 /* VGA                                                                 */
 
+/* Switches between text mode (03h) and 320x200 graphics (13h), clearing the screen. */
 void vga_set_mode(int mode)
 {
     int i;
@@ -352,6 +373,7 @@ void vga_set_mode(int mode)
     mouse_visible_ctr = -1;   /* the mouse driver hides its cursor on a mode switch */
 }
 
+/* Loads a 256-colour palette from 768 bytes of 6-bit VGA DAC values. */
 void vga_set_palette(const uint8_t *p)
 {
     int i;
@@ -362,21 +384,25 @@ void vga_set_palette(const uint8_t *p)
     }
 }
 
+/* Sets a pixel in mode 13h video memory. */
 void vga_putpixel(int x, int y, uint8_t c)
 {
     vga_vram[(uint16_t)(y * 320 + x)] = c;   /* 16-bit offset arithmetic like the original */
 }
 
+/* Returns a pixel from mode 13h video memory. */
 uint8_t vga_getpixel(int x, int y)
 {
     return vga_vram[(uint16_t)(y * 320 + x)];
 }
 
+/* Shows (1) or hides (0) the text-mode cursor. */
 void vga_cursor_shape(int visible) { cursor_on = visible; }
 
 /* ------------------------------------------------------------------ */
 /* Crt                                                                 */
 
+/* Scrolls the text screen up one line and blanks the bottom line. */
 static void scroll_up(void)
 {
     int r, c;
@@ -385,6 +411,8 @@ static void scroll_up(void)
     (void)r;
 }
 
+/* Writes one CP437 character at the cursor, handling BS, CR, LF, wrapping and
+   scrolling. */
 static void put_cp437(int ch)
 {
     switch (ch) {
@@ -403,6 +431,7 @@ static void put_cp437(int ch)
     }
 }
 
+/* Writes a UTF-8 string to the text screen, converted to CP437 ('?' if unknown). */
 static void write_utf8(const char *s)
 {
     const unsigned char *p = (const unsigned char *)s;
@@ -417,6 +446,7 @@ static void write_utf8(const char *s)
     }
 }
 
+/* Clears the text screen in the current colour and homes the cursor. */
 void crt_clrscr(void)
 {
     int r, c;
@@ -424,21 +454,26 @@ void crt_clrscr(void)
     cur_x = cur_y = 0;
 }
 
+/* Moves the text cursor to column x, row y (1-based); ignores invalid positions. */
 void crt_gotoxy(int x, int y)
 {
     if (x < 1 || x > 80 || y < 1 || y > 25) return;
     cur_x = x - 1; cur_y = y - 1;
 }
 
+/* Sets the text foreground colour; values above 15 make the text blink. */
 void crt_textcolor(int c)
 {
     if (c & 0xf0) c = (c & 0x0f) | 0x80;
     text_attr = (text_attr & 0x70) | c;
 }
 
+/* Writes a string at the cursor. */
 void crt_write(const char *s) { write_utf8(s); }
+/* Writes a string followed by a line break. */
 void crt_writeln(const char *s) { if (s) write_utf8(s); put_cp437(13); put_cp437(10); }
 
+/* Writes an integer at the cursor. */
 void crt_write_int(long v)
 {
     char b[32];
@@ -446,6 +481,7 @@ void crt_write_int(long v)
     write_utf8(b);
 }
 
+/* Returns nonzero if a key is waiting in the keyboard buffer. */
 int crt_keypressed(void)
 {
     pump_events();
@@ -458,6 +494,7 @@ int crt_keypressed(void)
     return khead != ktail;
 }
 
+/* Waits for a key and returns it; extended keys come as 0 followed by a scan code. */
 int crt_readkey(void)
 {
     int c;
@@ -467,6 +504,7 @@ int crt_readkey(void)
     return c;
 }
 
+/* Reads a line of input with echo, Backspace and Esc editing, ended by Enter. */
 void crt_readln(char *buf, int maxlen)
 {
     int n = 0, c;
@@ -490,6 +528,7 @@ void crt_readln(char *buf, int maxlen)
     put_cp437(13); put_cp437(10);
 }
 
+/* Waits ms milliseconds while keeping the window updated. */
 void crt_delay(int ms)
 {
     /* Crt.Delay busy-waits; keep the window alive while doing so */
@@ -504,9 +543,13 @@ void crt_delay(int ms)
 /* ------------------------------------------------------------------ */
 /* mouse                                                               */
 
+/* Resets the mouse driver: hides the cursor and clears any pending click. */
 void mouse_reset(void) { mouse_visible_ctr = -1; mouse_click_latch = 0; }
+/* Shows the mouse cursor (raises the visibility counter, at most to 0). */
 void mouse_show(void)  { if (mouse_visible_ctr < 0) mouse_visible_ctr++; }
+/* Hides the mouse cursor (lowers the visibility counter). */
 void mouse_hide(void)  { mouse_visible_ctr--; }
+/* Returns nonzero if the left button is held or was clicked in the last frame. */
 int  mouse_left_down(void)
 {
     int r;
@@ -516,7 +559,9 @@ int  mouse_left_down(void)
     mouse_click_latch = 0;
     return r;
 }
+/* Returns the mouse position in driver coordinates. */
 void mouse_getpos(int *x, int *y) { pump_events(); *x = mouse_x; *y = mouse_y; }
+/* Sets the mouse driver's position. */
 void mouse_setpos(int x, int y)
 {
     /* Only the driver's idea of the position changes; the host pointer is
@@ -530,12 +575,15 @@ void mouse_setpos(int x, int y)
 static plat_audio_cb a_cb;
 static void *a_user;
 
+/* SDL audio callback: hands the buffer to the registered mixer callback. */
 static void SDLCALL sdl_audio_cb(void *ud, Uint8 *stream, int len)
 {
     (void)ud;
     a_cb((int16_t *)stream, len / 2, a_user);
 }
 
+/* Opens a mono 16-bit audio device that calls cb to fill buffers. Returns the
+   actual sample rate, or 0 on failure. */
 int plat_audio_open(int rate, plat_audio_cb cb, void *user)
 {
     SDL_AudioSpec want, have;
@@ -552,5 +600,7 @@ int plat_audio_open(int rate, plat_audio_cb cb, void *user)
     return have.freq;
 }
 
+/* Keeps the audio callback from running (call before touching mixer state). */
 void plat_audio_lock(void)   { if (audio_dev) SDL_LockAudioDevice(audio_dev); }
+/* Lets the audio callback run again. */
 void plat_audio_unlock(void) { if (audio_dev) SDL_UnlockAudioDevice(audio_dev); }

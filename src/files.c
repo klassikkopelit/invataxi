@@ -18,6 +18,7 @@
 
 static char game_dir[1024] = "";
 
+/* Sets the directory the game files are read from, adding a trailing path separator. */
 void files_set_dir(const char *dir)
 {
     size_t n;
@@ -28,9 +29,11 @@ void files_set_dir(const char *dir)
     if (n && game_dir[n - 1] != '/' && game_dir[n - 1] != '\\') { game_dir[n] = PATH_SEP; game_dir[n + 1] = 0; }
 }
 
+/* Returns the current game directory (with trailing separator, or empty). */
 const char *files_get_dir(void) { return game_dir; }
 
 #ifndef _WIN32
+/* Compares two strings case-insensitively; returns 1 if they are equal. */
 static int ci_equal(const char *a, const char *b)
 {
     while (*a && *b) {
@@ -66,6 +69,7 @@ static int resolve(const char *dir, const char *name, char *out, size_t outsz)
     return 0;
 }
 
+/* Returns 1 if the file name exists in dir (matched case-insensitively). */
 int game_file_exists(const char *dir, const char *name)
 {
     char p[1200];
@@ -78,6 +82,8 @@ int game_file_exists(const char *dir, const char *name)
     return resolve(d, name, p, sizeof p);
 }
 
+/* Opens a file in the game directory, matching its name case-insensitively.
+   In write mode a file that doesn't exist yet is created. */
 FILE *game_fopen(const char *name, const char *mode)
 {
     char p[1200];
@@ -89,6 +95,8 @@ FILE *game_fopen(const char *name, const char *mode)
     return NULL;
 }
 
+/* Reads a whole game file into a malloc'd buffer and stores its size in *len.
+   Returns NULL on failure. */
 unsigned char *game_load(const char *name, size_t *len)
 {
     FILE *f = game_fopen(name, "rb");
