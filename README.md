@@ -42,7 +42,7 @@ cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.c
 rem   or: -DSDL2_DIR=C:/SDL2-2.x.x/cmake
 cmake --build build --config Release
 ```
-`SDL2.dll` is copied next to `invataxi.exe` automatically.
+`SDL2.dll` is copied next to `invataxi-sdl.exe` automatically.
 
 ### Windows – MinGW / MSYS2
 ```sh
@@ -62,21 +62,27 @@ them as a GitHub release:
 git tag v1.0.0
 git push origin v1.0.0
 ```
-Each zip holds the executable, `readme.txt` (from `packaging/`) and the
-libraries it needs: `SDL2.dll` on Windows; on macOS and Linux SDL2 is linked
-statically. The original game files are never included.
+Each zip holds the executable, `readme.txt` (from `packaging/`), the
+libraries it needs (`SDL2.dll` on Windows; on macOS and Linux SDL2 is linked
+statically) and an empty `data/` folder for the original game files, which are
+never included.
 
 ## Running
 
-Run `invataxi` inside the folder with the original files, or give the folder
+The program is called `invataxi-sdl` so that it can never overwrite the
+original `INVATAXI.EXE` (on Windows file names ignore case), which it needs.
+
+Run `invataxi-sdl` inside the folder with the original files, or give the folder
 as an argument:
 ```sh
-./build/invataxi /path/to/invataxi
-./build/invataxi --sound-menu /path/to/invataxi   # with the original sound menu
+./build/invataxi-sdl /path/to/invataxi
+./build/invataxi-sdl --sound-menu /path/to/invataxi   # with the original sound menu
 ```
-If no argument is given the game looks in the current directory and then next
-to the executable, so on Windows you can simply drop `invataxi.exe` and
-`SDL2.dll` into the game folder and double-click it. `HISCORE.NVA` is updated in
+If no argument is given the game looks in the current directory, then next to
+the executable, then in a `data` folder next to the executable. So you can
+either put the original files into a `data` folder beside `invataxi-sdl.exe`
+and `SDL2.dll` (the layout of the release zips), or drop those two files into
+the original game folder, and double-click the exe. `HISCORE.NVA` is updated in
 place, as in the original.
 
 Controls are those of the original: number keys in the menus, the left mouse
@@ -92,7 +98,7 @@ button on the map, any key to stop the taxi, ESC to give up.
   picture.
 * The original sound card / mixing rate menu is skipped: the game starts
   straight away as if you had picked Sound Blaster at 22000 Hz. Run
-  `invataxi --sound-menu` to get the original menu back (the chosen rate is
+  `invataxi-sdl --sound-menu` to get the original menu back (the chosen rate is
   then used, and "4. Ilman ääniä" plays without sound, as in the original).
 * All of the original's quirks are kept on purpose: the score is a random
   number, getting on the high-score list is a coin toss, the list position is

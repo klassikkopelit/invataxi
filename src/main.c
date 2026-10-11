@@ -1,12 +1,12 @@
 /*
  * main.c - entry point of the portable INVATAXI.
  *
- * Usage: invataxi [--sound-menu] [path-to-original-game-directory]
+ * Usage: invataxi-sdl [--sound-menu] [path-to-original-game-directory]
  *
  * The original game files (INVATAXI.EXE, HJUVA_#1.EXE, HJUVA_#2.EXE,
  * HARMONIA.NVA, HISCORE.NVA and 1.SKP ... 24.SKP) are needed at runtime.
  * Without an argument the game looks in the current directory, then next to
- * the executable.
+ * the executable, then in a "data" folder next to the executable.
  */
 #include <SDL.h>
 #include <stdio.h>
@@ -51,9 +51,9 @@ int main(int argc, char **argv)
     if (!found) {
         const char *msg =
             "Original INVATAXI game files not found.\n\n"
-            "Run the game from the directory that contains INVATAXI.EXE,\n"
-            "HJUVA_#1.EXE, HJUVA_#2.EXE, HARMONIA.NVA and the *.SKP files,\n"
-            "or pass that directory as the first argument.";
+            "Copy INVATAXI.EXE, HJUVA_#1.EXE, HJUVA_#2.EXE, HARMONIA.NVA,\n"
+            "HISCORE.NVA and the *.SKP files into the \"data\" folder next to\n"
+            "this program, or pass the game directory as the first argument.";
         fprintf(stderr, "%s\n", msg);
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "INVATAXI", msg, NULL);
         return 1;

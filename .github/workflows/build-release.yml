@@ -72,14 +72,14 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/sdl2-static"
           cmake --build build --parallel
-          strip build/invataxi
+          strip build/invataxi-sdl
           echo "Shared library dependencies:"
-          ldd build/invataxi
+          ldd build/invataxi-sdl
 
       - name: Package
         run: |
           bash packaging/package.sh linux "invataxi-${VERSION}-linux-x64" \
-            build/invataxi sdl2-static/LICENSE-SDL2.txt
+            build/invataxi-sdl sdl2-static/LICENSE-SDL2.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -125,16 +125,16 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/sdl2-static" \
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
           cmake --build build --parallel
-          strip build/invataxi
-          codesign --force --sign - build/invataxi
-          lipo -info build/invataxi
+          strip build/invataxi-sdl
+          codesign --force --sign - build/invataxi-sdl
+          lipo -info build/invataxi-sdl
           echo "Shared library dependencies:"
-          otool -L build/invataxi
+          otool -L build/invataxi-sdl
 
       - name: Package
         run: |
           bash packaging/package.sh macos "invataxi-${VERSION}-macos-universal" \
-            build/invataxi sdl2-static/LICENSE-SDL2.txt
+            build/invataxi-sdl sdl2-static/LICENSE-SDL2.txt
 
       - uses: actions/upload-artifact@v4
         with:
@@ -179,7 +179,7 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DSDL2_DIR="$sdl_dir/cmake" -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc"
           cmake --build build
-          strip build/invataxi.exe
+          strip build/invataxi-sdl.exe
 
       # SDL2.dll, plus any MinGW runtime DLL the exe or SDL2.dll imports
       # (normally none: everything else is part of Windows 10/11).
@@ -187,11 +187,11 @@ jobs:
         run: |
           mkdir -p dlls
           cp "SDL2-${SDL_VERSION}/x86_64-w64-mingw32/bin/SDL2.dll" dlls/
-          for dll in $(objdump -p build/invataxi.exe dlls/SDL2.dll | awk '/DLL Name:/ {print $3}' | sort -u); do
+          for dll in $(objdump -p build/invataxi-sdl.exe dlls/SDL2.dll | awk '/DLL Name:/ {print $3}' | sort -u); do
             if [ -f "/ucrt64/bin/$dll" ]; then cp "/ucrt64/bin/$dll" dlls/; fi
           done
-          echo "invataxi.exe imports:"
-          objdump -p build/invataxi.exe | grep "DLL Name"
+          echo "invataxi-sdl.exe imports:"
+          objdump -p build/invataxi-sdl.exe | grep "DLL Name"
           echo "Bundled DLLs:"
           ls dlls
           cp "SDL2-${SDL_VERSION}/LICENSE.txt" LICENSE-SDL2.txt
@@ -199,7 +199,7 @@ jobs:
       - name: Package
         run: |
           CRLF=1 bash packaging/package.sh windows "invataxi-${VERSION}-windows-x64" \
-            build/invataxi.exe dlls/*.dll LICENSE-SDL2.txt "SDL2-${SDL_VERSION}/README-SDL.txt"
+            build/invataxi-sdl.exe dlls/*.dll LICENSE-SDL2.txt "SDL2-${SDL_VERSION}/README-SDL.txt"
 
       - uses: actions/upload-artifact@v4
         with:

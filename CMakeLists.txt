@@ -14,6 +14,10 @@ add_executable(invataxi WIN32
     src/files.c
     src/pklite.c)
 
+# Not "invataxi": on Windows that would clash with the original INVATAXI.EXE,
+# which the game needs (it reads the map picture from it).
+set_target_properties(invataxi PROPERTIES OUTPUT_NAME invataxi-sdl)
+
 if(TARGET SDL2::SDL2)
     if(TARGET SDL2::SDL2main)
         target_link_libraries(invataxi PRIVATE SDL2::SDL2main)

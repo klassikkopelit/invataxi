@@ -3,10 +3,11 @@
 #
 # Usage: package.sh <linux|macos|windows> <name> <file>...
 #
-# The zip contains one folder <name>/ with the given files and a readme.txt
-# made from packaging/readme.txt: @VERSION@ is replaced with $VERSION and the
-# @PLATFORM_NOTES@ line with packaging/readme-<platform>.txt.
-# Set CRLF=1 to give readme.txt Windows line endings.
+# The zip contains one folder <name>/ with the given files, a readme.txt made
+# from packaging/readme.txt (@VERSION@ is replaced with $VERSION and the
+# @PLATFORM_NOTES@ line with packaging/readme-<platform>.txt) and an empty
+# data/ folder for the original game files, holding only a short note.
+# Set CRLF=1 to give the text files Windows line endings.
 set -euo pipefail
 
 platform="$1"
@@ -29,8 +30,11 @@ awk -v notes="$notes" -v version="${VERSION:-dev}" '
     { gsub(/@VERSION@/, version); print }
 ' packaging/readme.txt > "$stage/readme.txt"
 
+mkdir -p "$stage/data"
+cp packaging/data-readme.txt "$stage/data/COPY_ORIGINAL_GAME_FILES_HERE.txt"
+
 if [ "${CRLF:-0}" = 1 ]; then
-    sed -i 's/$/\r/' "$stage/readme.txt"
+    sed -i 's/$/\r/' "$stage/readme.txt" "$stage/data/COPY_ORIGINAL_GAME_FILES_HERE.txt"
 fi
 
 (cd dist && zip -r -9 "$name.zip" "$name")

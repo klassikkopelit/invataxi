@@ -15,14 +15,19 @@ files at runtime, so you need your own copy of the original game:
     INVATAXI.EXE   HJUVA_#1.EXE   HJUVA_#2.EXE
     HARMONIA.NVA   HISCORE.NVA    1.SKP ... 24.SKP
 
-The easiest way: copy everything from this package into the folder that
-holds the original game files (or the original files into this folder) and
-start the game there.
+Copy those files into the "data" folder of this package, then start
+invataxi-sdl. That's all.
 
-The game folder can also be given on the command line:
+The program is called invataxi-sdl (not invataxi) on purpose: the original
+INVATAXI.EXE is one of the game files, and the port needs it.
 
-    invataxi /path/to/original/game
-    invataxi --sound-menu /path/to/original/game
+Other ways that work too:
+  - copy the files of this package into the original game folder and start
+    invataxi-sdl there, or
+  - give the game folder on the command line:
+
+        invataxi-sdl /path/to/original/game
+        invataxi-sdl --sound-menu /path/to/original/game
 
 --sound-menu shows the original sound card / mixing rate menu.
 HISCORE.NVA is updated in place, as in the original.

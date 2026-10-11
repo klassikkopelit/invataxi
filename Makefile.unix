@@ -10,13 +10,13 @@ CFLAGS  += -std=c99 $(SDL_CFLAGS)
 SRC = src/main.c src/game.c src/platform.c src/modplayer.c src/files.c src/pklite.c
 OBJ = $(SRC:.c=.o)
 
-invataxi: $(OBJ)
+invataxi-sdl: $(OBJ)
 	$(CC) -o $@ $(OBJ) $(SDL_LIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(OBJ) invataxi invataxi.exe
+	rm -f $(OBJ) invataxi-sdl invataxi-sdl.exe
 
 .PHONY: clean

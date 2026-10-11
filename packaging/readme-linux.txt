@@ -8,4 +8,4 @@ PipeWire, PulseAudio or ALSA libraries, which every desktop install has.
 
 Start the game from a terminal:
 
-    ./invataxi
+    ./invataxi-sdl
