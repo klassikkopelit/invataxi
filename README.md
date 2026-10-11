@@ -15,6 +15,17 @@ player "PaxiMod" that was linked into the game is re-implemented in
 `HISCORE.NVA` and `1.SKP` … `24.SKP`. The pictures are unpacked straight out of
 the PKLITE-compressed EXEs, so nothing has to be extracted by hand.
 
+## Download
+
+Version 1.0.0:
+
+- [Windows (64-bit)](https://github.com/klassikkopelit/invataxi/releases/download/v1.0.0/invataxi-v1.0.0-windows-x64.zip)
+- [macOS (Apple silicon and Intel)](https://github.com/klassikkopelit/invataxi/releases/download/v1.0.0/invataxi-v1.0.0-macos-universal.zip)
+- [Linux (64-bit)](https://github.com/klassikkopelit/invataxi/releases/download/v1.0.0/invataxi-v1.0.0-linux-x64.zip)
+
+All versions: [Releases](https://github.com/klassikkopelit/invataxi/releases).
+You also need the original INVATAXI game files, see `readme.txt` in the zip.
+
 ## Original game files
 
 You can download the original game files from [Internet Archive](https://archive.org/details/invataxi)
