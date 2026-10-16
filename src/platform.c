@@ -131,6 +131,56 @@ static void update_mouse_from_window(int wx, int wy)
     mouse_y = y;
 }
 
+#ifdef __EMSCRIPTEN__
+/* Web version on a touch screen: decides what a finger tap means. On the map
+   (graphics mode with the mouse pointer shown) it stays a mouse click and 0 is
+   returned. Elsewhere it becomes a key press and 1 is returned: on a text
+   screen a tap on a menu line such as "1   ALOITA PELI" presses that line's
+   number, any other tap presses space (the game's "press any key"). */
+static int touch_tap_as_key(int wy)
+{
+    int ww, wh, i;
+    SDL_Rect v;
+    if (cur_mode == 0x13) {
+        if (mouse_visible_ctr >= 0) return 0;
+        kpush(' ');
+        return 1;
+    }
+    SDL_GetWindowSize(win, &ww, &wh);
+    v = fit_4_3(ww, wh);
+    if (v.h > 0) {
+        double fy = (double)(wy - v.y) * 25.0 / v.h;
+        int r = (int)fy;
+        /* the tapped row first, then the nearer and the farther neighbour,
+           so a tap between two menu lines still picks one of them */
+        int rows[3];
+        rows[0] = r;
+        rows[1] = (fy - r < 0.5) ? r - 1 : r + 1;
+        rows[2] = (fy - r < 0.5) ? r + 1 : r - 1;
+        for (i = 0; i < 3; i++) {
+            int col, row = rows[i];
+            if (row < 0 || row > 24) continue;
+            for (col = 0; col < 80; col++) {
+                int ch = txt[row][col] & 0xff;
+                if (ch >= '0' && ch <= '9') { kpush(ch); return 1; }
+                if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= 0x80 && ch <= 0xA5)) break;   /* letters incl. åäö */
+            }
+            if (col < 80) break;   /* a line of text, not a menu line */
+        }
+    }
+    kpush(' ');
+    return 1;
+}
+
+/* Web version: lets the page feed keys to the game (the Esc button and the
+   name field shown on touch screens). Takes a Unicode code point. */
+EMSCRIPTEN_KEEPALIVE void web_push_key(int unicode)
+{
+    int c = uni_to_cp437((uint32_t)unicode);
+    if (c > 0) kpush(c);
+}
+#endif
+
 /* Processes pending SDL events: quit, keys into the DOS-style keyboard buffer,
    mouse movement and buttons. */
 static void pump_events(void)
@@ -178,7 +228,9 @@ static void pump_events(void)
                 else if ((*s & 0xF0) == 0xE0 && s[1] && s[2]) { u = ((uint32_t)(s[0] & 0x0F) << 12) | ((uint32_t)(s[1] & 0x3F) << 6) | (s[2] & 0x3F); s += 3; }
                 else { s++; continue; }
                 c = uni_to_cp437(u);
-                if (c > 0) kpush(c);
+                /* control keys (Enter, Esc...) already came as SDL_KEYDOWN; browsers
+                   send Enter a second time as text */
+                if (c >= 32) kpush(c);
             }
             break;
         }
@@ -186,6 +238,9 @@ static void pump_events(void)
             update_mouse_from_window(e.motion.x, e.motion.y);
             break;
         case SDL_MOUSEBUTTONDOWN:
+#ifdef __EMSCRIPTEN__
+            if (e.button.which == SDL_TOUCH_MOUSEID && touch_tap_as_key(e.button.y)) break;
+#endif
             if (e.button.button == SDL_BUTTON_LEFT) { mouse_btn |= 1; mouse_click_latch = 1; mouse_click_frame = frame_count; }
             if (e.button.button == SDL_BUTTON_RIGHT) mouse_btn |= 2;
             update_mouse_from_window(e.button.x, e.button.y);
@@ -607,6 +662,9 @@ void crt_readln(char *buf, int maxlen)
 {
     int n = 0, c;
     if (maxlen > 127) maxlen = 127;    /* Crt line buffer */
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ if (Module.onTextInput) Module.onTextInput($0); }, maxlen);   /* touch: name field */
+#endif
     for (;;) {
         c = crt_readkey();
         if (c == 0) { crt_readkey(); continue; }   /* ignore extended keys */
@@ -624,6 +682,9 @@ void crt_readln(char *buf, int maxlen)
     }
     buf[n] = 0;
     put_cp437(13); put_cp437(10);
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ if (Module.onTextInputDone) Module.onTextInputDone(); });
+#endif
 }
 
 /* Waits ms milliseconds while keeping the window updated. */

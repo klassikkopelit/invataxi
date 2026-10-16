@@ -27,6 +27,7 @@ if(EMSCRIPTEN)
         -sASYNCIFY                 # lets the game's wait loops yield to the browser
         -sALLOW_MEMORY_GROWTH=1
         -sENVIRONMENT=web
+        -sEXPORTED_FUNCTIONS=_main,_web_push_key
         -sMINIFY_HTML=0
         "SHELL:--shell-file ${CMAKE_SOURCE_DIR}/web/shell.html"
         "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/assets@/game")

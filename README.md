@@ -18,7 +18,10 @@ the PKLITE-compressed EXEs, so nothing has to be extracted by hand.
 ## Play in the browser
 
 **[Play INVATAXI in your browser](https://klassikkopelit.github.io/invataxi/)**,
-no installation or game files needed.
+no installation or game files needed. Works on phones and tablets too: tap a
+menu line to choose it, tap the map to pick the destination, tap anywhere else
+to continue or stop the taxi, and use the Esc button to give up. The name for
+the high-score list is typed into a field that opens the on-screen keyboard.
 
 ## Download
 
@@ -85,7 +88,9 @@ python3 -m http.server -d build-web 8000
 and open <http://localhost:8000>. The page has to come from a web server;
 opening `index.html` straight from disk does not work. The original game
 files in `assets/` are packed into the page (`index.data`), and high scores
-are kept in the browser's local storage. The web-only code is inside
+are kept in the browser's local storage. On touch screens a tap becomes a
+key press except on the map (`touch_tap_as_key()` in `src/platform.c`), and
+the page adds an Esc button and a name field. The web-only code is inside
 `#ifdef __EMSCRIPTEN__` blocks and in `web/shell.html`, so the desktop builds
 are unchanged.
 
@@ -153,6 +158,8 @@ Small, deliberate differences:
 * If `HISCORE.NVA` is missing, the default table is shown instead of the
   original's "Runtime error 002".
 * The farewell text stays on screen for 1.5 s before the window closes.
+* Keys pressed before the high-score name prompt appears are ignored, so they
+  don't end up at the start of the name (the original kept them).
 
 ## Source layout
 

@@ -441,6 +441,7 @@ static void enter_hiscore(void)
     show_text_cursor();
     crt_writeln("Onneksi olkoon! Olet päässyt parhaiden pelaajien joukkoon.");
     crt_write("Annapa nimesi! ");
+    while (crt_keypressed()) crt_readkey();   /* (port) drop keys pressed before the prompt */
     crt_readln(player_name, 255);
     hide_text_cursor();
 
